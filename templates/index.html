@@ -4,236 +4,391 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Music Visualizer</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0d1117;
-            color: #c9d1d9;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            min-height: 100vh;
         }
-        .container {
-            max-width: 900px;
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         canvas {
-            border: 2px solid #242a32;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            background-color: #161b22;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .upload-zone {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+        }
+        .upload-zone:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div class="container w-full p-6 bg-gray-800 rounded-xl shadow-2xl space-y-6">
+    <div class="w-full max-w-4xl p-8 glass-effect rounded-2xl shadow-2xl space-y-8">
         <header class="text-center">
-            <h1 class="text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+            <h1 class="text-7xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500">
                 Music Visualizer
             </h1>
-            <p class="mt-2 text-xl text-gray-300">
-                Upload an audio file and see the music come to life.
+            <p class="mt-4 text-xl text-gray-200">
+                Upload an audio file and watch the frequencies dance
             </p>
         </header>
 
-        <!-- Upload Form -->
-        <div id="upload-section" class="flex flex-col items-center justify-center p-6 bg-gray-900 rounded-lg border-2 border-dashed border-gray-700">
-            <h2 class="text-xl font-semibold mb-2">Upload Audio File</h2>
-            <form id="upload-form" class="space-y-4">
-                <input type="file" id="audio-file" accept=".mp3,.wav,.flac,.ogg,.m4a"
-                       class="block w-full text-sm text-gray-500
-                              file:mr-4 file:py-2 file:px-4
-                              file:rounded-full file:border-0
-                              file:text-sm file:font-semibold
-                              file:bg-violet-50 file:text-violet-700
-                              hover:file:bg-violet-100" />
-                <button type="submit" id="upload-button"
-                        class="w-full px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
-                               bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    Process File
+        <!-- Upload Section -->
+        <div id="upload-section" class="upload-zone flex flex-col items-center justify-center p-8 rounded-xl">
+            <div class="text-center space-y-4">
+                <div class="text-6xl opacity-50">🎵</div>
+                <h2 class="text-2xl font-bold">Drop Your Music Here</h2>
+                <input type="file" id="audio-file" accept="audio/*" 
+                       class="hidden" />
+                <button id="upload-button" 
+                        class="px-8 py-4 font-bold text-white transition-all duration-300 rounded-full
+                               bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600
+                               transform hover:scale-105 shadow-lg hover:shadow-xl">
+                    Choose Audio File
                 </button>
-            </form>
-            <p id="status-message" class="mt-4 text-sm text-gray-500"></p>
+                <p class="text-sm text-gray-300">Supports MP3, WAV, OGG, and more</p>
+            </div>
         </div>
 
         <!-- Visualizer Section -->
-        <div id="visualizer-section" class="hidden flex-col items-center space-y-4">
-            <div class="w-full h-80 bg-gray-900 rounded-lg flex items-center justify-center">
-                <canvas id="visualizer-canvas" class="w-full h-full rounded-lg"></canvas>
+        <div id="visualizer-section" class="hidden space-y-6">
+            <div class="relative">
+                <canvas id="visualizer-canvas" width="800" height="400" class="w-full"></canvas>
+                <div id="loading" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-xl">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+                        <p class="mt-4 text-lg">Loading audio...</p>
+                    </div>
+                </div>
             </div>
             
-            <audio id="audio-player" class="hidden" controls></audio>
+            <audio id="audio-player" class="w-full" controls></audio>
 
             <!-- Controls -->
             <div class="flex items-center justify-center space-x-4">
-                <button id="play-button" disabled
-                        class="px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
-                               bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Play
+                <button id="play-button" 
+                        class="px-8 py-4 font-bold text-white transition-all duration-300 rounded-full
+                               bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600
+                               transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    ▶ Play
                 </button>
-                <button id="stop-button" disabled
-                        class="px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
-                               bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    Stop
+                <button id="pause-button" 
+                        class="px-8 py-4 font-bold text-white transition-all duration-300 rounded-full
+                               bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600
+                               transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    ⏸ Pause
                 </button>
+                <button id="stop-button" 
+                        class="px-8 py-4 font-bold text-white transition-all duration-300 rounded-full
+                               bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600
+                               transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                    ⏹ Stop
+                </button>
+            </div>
+
+            <!-- Visualization Settings -->
+            <div class="glass-effect p-6 rounded-xl space-y-4">
+                <h3 class="text-lg font-semibold text-center">Visualization Settings</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Sensitivity</label>
+                        <input type="range" id="sensitivity" min="1" max="10" value="5" 
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Smoothing</label>
+                        <input type="range" id="smoothing" min="0" max="10" value="5" 
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Style</label>
+                        <select id="viz-style" class="w-full p-2 bg-gray-700 rounded-lg border border-gray-600">
+                            <option value="bars">Frequency Bars</option>
+                            <option value="wave">Waveform</option>
+                            <option value="circular">Circular</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // --- DOM Elements ---
-            const uploadForm = document.getElementById('upload-form');
-            const audioFile = document.getElementById('audio-file');
-            const uploadSection = document.getElementById('upload-section');
-            const visualizerSection = document.getElementById('visualizer-section');
-            const statusMessage = document.getElementById('status-message');
-            const playButton = document.getElementById('play-button');
-            const stopButton = document.getElementById('stop-button');
-            const audioPlayer = document.getElementById('audio-player');
-            const canvas = document.getElementById('visualizer-canvas');
-            const ctx = canvas.getContext('2d');
-
-            // --- State Variables ---
-            let audioContext;
-            let analyser;
-            let source;
-            let animationFrameId;
-
-            // --- Canvas Setup ---
-            const resizeCanvas = () => {
-                canvas.width = canvas.offsetWidth;
-                canvas.height = canvas.offsetHeight;
-            };
-            window.addEventListener('resize', resizeCanvas);
-            resizeCanvas();
-
-            // --- Visualization and Animation ---
-            const visualize = () => {
-                // Clear the canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+        class MusicVisualizer {
+            constructor() {
+                this.initializeElements();
+                this.setupEventListeners();
+                this.audioContext = null;
+                this.analyser = null;
+                this.source = null;
+                this.animationId = null;
+                this.isPlaying = false;
                 
-                // Get the frequency data
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                analyser.getByteFrequencyData(dataArray);
+                // Visualization settings
+                this.sensitivity = 5;
+                this.smoothing = 0.5;
+                this.vizStyle = 'bars';
+                this.previousData = new Uint8Array(256);
+            }
 
-                const barWidth = canvas.width / bufferLength;
-                let x = 0;
+            initializeElements() {
+                this.uploadSection = document.getElementById('upload-section');
+                this.visualizerSection = document.getElementById('visualizer-section');
+                this.uploadButton = document.getElementById('upload-button');
+                this.audioFile = document.getElementById('audio-file');
+                this.audioPlayer = document.getElementById('audio-player');
+                this.canvas = document.getElementById('visualizer-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.playButton = document.getElementById('play-button');
+                this.pauseButton = document.getElementById('pause-button');
+                this.stopButton = document.getElementById('stop-button');
+                this.loading = document.getElementById('loading');
+                this.sensitivitySlider = document.getElementById('sensitivity');
+                this.smoothingSlider = document.getElementById('smoothing');
+                this.styleSelect = document.getElementById('viz-style');
+                
+                this.resizeCanvas();
+            }
 
-                // Draw the bars
-                for (let i = 0; i < bufferLength; i++) {
-                    // Data is from 0-255, so we normalize it for bar height
-                    const barHeight = dataArray[i] / 255 * canvas.height;
+            setupEventListeners() {
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                this.uploadButton.addEventListener('click', () => this.audioFile.click());
+                this.audioFile.addEventListener('change', (e) => this.handleFileSelect(e));
+                
+                this.playButton.addEventListener('click', () => this.play());
+                this.pauseButton.addEventListener('click', () => this.pause());
+                this.stopButton.addEventListener('click', () => this.stop());
+                
+                this.sensitivitySlider.addEventListener('input', (e) => {
+                    this.sensitivity = parseInt(e.target.value);
+                });
+                
+                this.smoothingSlider.addEventListener('input', (e) => {
+                    this.smoothing = parseInt(e.target.value) / 10;
+                });
+                
+                this.styleSelect.addEventListener('change', (e) => {
+                    this.vizStyle = e.target.value;
+                });
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * window.devicePixelRatio;
+                this.canvas.height = rect.height * window.devicePixelRatio;
+                this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            }
+
+            async handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                try {
+                    const url = URL.createObjectURL(file);
+                    this.audioPlayer.src = url;
                     
-                    // Draw a gradient bar
-                    const gradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
-                    gradient.addColorStop(0, '#a855f7');
-                    gradient.addColorStop(1, '#ec4899');
-                    ctx.fillStyle = gradient;
+                    this.uploadSection.classList.add('hidden');
+                    this.visualizerSection.classList.remove('hidden');
+                    
+                    await this.initializeAudioContext();
+                    
+                    this.audioPlayer.addEventListener('loadeddata', () => {
+                        this.loading.classList.add('hidden');
+                        this.enableControls();
+                    });
+                    
+                } catch (error) {
+                    console.error('Error loading audio file:', error);
+                    alert('Error loading audio file. Please try a different file.');
+                }
+            }
 
-                    // Draw the bar with a bit of a gap
-                    ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+            async initializeAudioContext() {
+                if (this.audioContext) return;
+                
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.analyser = this.audioContext.createAnalyser();
+                this.source = this.audioContext.createMediaElementSource(this.audioPlayer);
+                
+                this.source.connect(this.analyser);
+                this.analyser.connect(this.audioContext.destination);
+                
+                this.analyser.fftSize = 512;
+                this.analyser.smoothingTimeConstant = this.smoothing;
+                
+                this.bufferLength = this.analyser.frequencyBinCount;
+                this.dataArray = new Uint8Array(this.bufferLength);
+                this.previousData = new Uint8Array(this.bufferLength);
+            }
+
+            enableControls() {
+                this.playButton.disabled = false;
+                this.pauseButton.disabled = false;
+                this.stopButton.disabled = false;
+            }
+
+            async play() {
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
+                
+                this.audioPlayer.play();
+                this.isPlaying = true;
+                this.visualize();
+                
+                this.playButton.innerHTML = '▶ Playing...';
+                this.playButton.disabled = true;
+            }
+
+            pause() {
+                this.audioPlayer.pause();
+                this.isPlaying = false;
+                
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                }
+                
+                this.playButton.innerHTML = '▶ Play';
+                this.playButton.disabled = false;
+            }
+
+            stop() {
+                this.audioPlayer.pause();
+                this.audioPlayer.currentTime = 0;
+                this.isPlaying = false;
+                
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                }
+                
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.playButton.innerHTML = '▶ Play';
+                this.playButton.disabled = false;
+            }
+
+            visualize() {
+                if (!this.isPlaying) return;
+                
+                this.animationId = requestAnimationFrame(() => this.visualize());
+                
+                this.analyser.getByteFrequencyData(this.dataArray);
+                
+                // Apply smoothing
+                for (let i = 0; i < this.bufferLength; i++) {
+                    this.dataArray[i] = this.previousData[i] * this.smoothing + this.dataArray[i] * (1 - this.smoothing);
+                    this.previousData[i] = this.dataArray[i];
+                }
+                
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                switch (this.vizStyle) {
+                    case 'bars':
+                        this.drawBars();
+                        break;
+                    case 'wave':
+                        this.drawWaveform();
+                        break;
+                    case 'circular':
+                        this.drawCircular();
+                        break;
+                }
+            }
+
+            drawBars() {
+                const barWidth = (this.canvas.width / window.devicePixelRatio) / this.bufferLength * 2;
+                let x = 0;
+                
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const barHeight = (this.dataArray[i] / 255) * (this.canvas.height / window.devicePixelRatio) * this.sensitivity / 5;
+                    
+                    // Create gradient
+                    const gradient = this.ctx.createLinearGradient(0, this.canvas.height / window.devicePixelRatio, 0, this.canvas.height / window.devicePixelRatio - barHeight);
+                    const hue = (i / this.bufferLength) * 360;
+                    gradient.addColorStop(0, `hsl(${hue}, 100%, 50%)`);
+                    gradient.addColorStop(1, `hsl(${hue + 60}, 100%, 70%)`);
+                    
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.fillRect(x, this.canvas.height / window.devicePixelRatio - barHeight, barWidth - 1, barHeight);
                     
                     x += barWidth;
                 }
-                
-                // Request the next animation frame
-                animationFrameId = requestAnimationFrame(visualize);
-            };
+            }
 
-            const startVisualization = () => {
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioContext.createAnalyser();
-                    source = audioContext.createMediaElementSource(audioPlayer);
-                    source.connect(analyser);
-                    analyser.connect(audioContext.destination);
-
-                    // Set some analyser properties
-                    analyser.fftSize = 256;
-                }
+            drawWaveform() {
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeStyle = '#00ff88';
+                this.ctx.beginPath();
                 
-                // Start the audio playback
-                audioPlayer.play();
+                const sliceWidth = (this.canvas.width / window.devicePixelRatio) / this.bufferLength;
+                let x = 0;
                 
-                // Start the visualization loop
-                visualize();
-                
-                playButton.textContent = 'Playing...';
-                playButton.disabled = true;
-                stopButton.disabled = false;
-            };
-
-            const stopVisualization = () => {
-                audioPlayer.pause();
-                audioPlayer.currentTime = 0;
-                
-                // Stop the visualization loop
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                }
-
-                // Reset the canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                playButton.textContent = 'Play';
-                playButton.disabled = false;
-                stopButton.disabled = true;
-            };
-            
-            // --- File Upload Logic ---
-            uploadForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const file = audioFile.files[0];
-                if (!file) {
-                    statusMessage.textContent = 'Please select a file first.';
-                    return;
-                }
-
-                statusMessage.textContent = 'Uploading and processing file...';
-                
-                // Use FormData to send the file
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                try {
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const v = this.dataArray[i] / 128.0;
+                    const y = v * (this.canvas.height / window.devicePixelRatio) / 2 * this.sensitivity / 5;
                     
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log(data.message);
-                        
-                        // Show the visualizer section and hide the upload form
-                        uploadSection.classList.add('hidden');
-                        visualizerSection.classList.remove('hidden');
-
-                        // Set the audio source and show controls
-                        audioPlayer.src = URL.createObjectURL(file);
-                        audioPlayer.classList.remove('hidden');
-
-                        // Enable the play button once the file is loaded
-                        audioPlayer.addEventListener('loadeddata', () => {
-                            playButton.disabled = false;
-                            statusMessage.textContent = 'File loaded. Click Play to visualize.';
-                        });
-
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
                     } else {
-                        const errorData = await response.json();
-                        statusMessage.textContent = `Error: ${errorData.error}`;
-                        console.error('Upload failed:', errorData.error);
+                        this.ctx.lineTo(x, y);
                     }
-                } catch (error) {
-                    statusMessage.textContent = 'An error occurred during upload.';
-                    console.error('Fetch error:', error);
+                    
+                    x += sliceWidth;
                 }
-            });
-            
-            // --- Event Listeners for Controls ---
-            playButton.addEventListener('click', startVisualization);
-            stopButton.addEventListener('click', stopVisualization);
+                
+                this.ctx.stroke();
+            }
+
+            drawCircular() {
+                const centerX = (this.canvas.width / window.devicePixelRatio) / 2;
+                const centerY = (this.canvas.height / window.devicePixelRatio) / 2;
+                const radius = Math.min(centerX, centerY) * 0.6;
+                
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const angle = (i / this.bufferLength) * Math.PI * 2;
+                    const barHeight = (this.dataArray[i] / 255) * 100 * this.sensitivity / 5;
+                    
+                    const x1 = centerX + Math.cos(angle) * radius;
+                    const y1 = centerY + Math.sin(angle) * radius;
+                    const x2 = centerX + Math.cos(angle) * (radius + barHeight);
+                    const y2 = centerY + Math.sin(angle) * (radius + barHeight);
+                    
+                    const hue = (i / this.bufferLength) * 360;
+                    this.ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+                    this.ctx.lineWidth = 2;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x1, y1);
+                    this.ctx.lineTo(x2, y2);
+                    this.ctx.stroke();
+                }
+            }
+        }
+
+        // Initialize the visualizer when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new MusicVisualizer();
         });
     </script>
 </body>
