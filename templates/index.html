@@ -9,20 +9,232 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        .container {
+            max-width: 900px;
+        }
+        canvas {
+            border: 2px solid #242a32;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background-color: #161b22;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
-    <div class="text-center p-8 bg-gray-800 rounded-lg shadow-2xl border border-gray-700">
-        <h1 class="text-5xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-            Music Visualizer
-        </h1>
-        <p class="text-xl text-gray-300">
-            Hello! The server is running.
-        </p>
-        <p class="mt-4 text-sm text-gray-500">
-            Now you can add your front-end visualization code here.
-        </p>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="container w-full p-6 bg-gray-800 rounded-xl shadow-2xl space-y-6">
+        <header class="text-center">
+            <h1 class="text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+                Music Visualizer
+            </h1>
+            <p class="mt-2 text-xl text-gray-300">
+                Upload an audio file and see the music come to life.
+            </p>
+        </header>
+
+        <!-- Upload Form -->
+        <div id="upload-section" class="flex flex-col items-center justify-center p-6 bg-gray-900 rounded-lg border-2 border-dashed border-gray-700">
+            <h2 class="text-xl font-semibold mb-2">Upload Audio File</h2>
+            <form id="upload-form" class="space-y-4">
+                <input type="file" id="audio-file" accept=".mp3,.wav,.flac,.ogg,.m4a"
+                       class="block w-full text-sm text-gray-500
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-violet-50 file:text-violet-700
+                              hover:file:bg-violet-100" />
+                <button type="submit" id="upload-button"
+                        class="w-full px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
+                               bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    Process File
+                </button>
+            </form>
+            <p id="status-message" class="mt-4 text-sm text-gray-500"></p>
+        </div>
+
+        <!-- Visualizer Section -->
+        <div id="visualizer-section" class="hidden flex-col items-center space-y-4">
+            <div class="w-full h-80 bg-gray-900 rounded-lg flex items-center justify-center">
+                <canvas id="visualizer-canvas" class="w-full h-full rounded-lg"></canvas>
+            </div>
+            
+            <audio id="audio-player" class="hidden" controls></audio>
+
+            <!-- Controls -->
+            <div class="flex items-center justify-center space-x-4">
+                <button id="play-button" disabled
+                        class="px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
+                               bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Play
+                </button>
+                <button id="stop-button" disabled
+                        class="px-6 py-3 font-bold text-white transition-colors duration-200 rounded-full
+                               bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Stop
+                </button>
+            </div>
+        </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const uploadForm = document.getElementById('upload-form');
+            const audioFile = document.getElementById('audio-file');
+            const uploadSection = document.getElementById('upload-section');
+            const visualizerSection = document.getElementById('visualizer-section');
+            const statusMessage = document.getElementById('status-message');
+            const playButton = document.getElementById('play-button');
+            const stopButton = document.getElementById('stop-button');
+            const audioPlayer = document.getElementById('audio-player');
+            const canvas = document.getElementById('visualizer-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // --- State Variables ---
+            let audioContext;
+            let analyser;
+            let source;
+            let animationFrameId;
+
+            // --- Canvas Setup ---
+            const resizeCanvas = () => {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            };
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // --- Visualization and Animation ---
+            const visualize = () => {
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Get the frequency data
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                analyser.getByteFrequencyData(dataArray);
+
+                const barWidth = canvas.width / bufferLength;
+                let x = 0;
+
+                // Draw the bars
+                for (let i = 0; i < bufferLength; i++) {
+                    // Data is from 0-255, so we normalize it for bar height
+                    const barHeight = dataArray[i] / 255 * canvas.height;
+                    
+                    // Draw a gradient bar
+                    const gradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+                    gradient.addColorStop(0, '#a855f7');
+                    gradient.addColorStop(1, '#ec4899');
+                    ctx.fillStyle = gradient;
+
+                    // Draw the bar with a bit of a gap
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+                    
+                    x += barWidth;
+                }
+                
+                // Request the next animation frame
+                animationFrameId = requestAnimationFrame(visualize);
+            };
+
+            const startVisualization = () => {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    source = audioContext.createMediaElementSource(audioPlayer);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    // Set some analyser properties
+                    analyser.fftSize = 256;
+                }
+                
+                // Start the audio playback
+                audioPlayer.play();
+                
+                // Start the visualization loop
+                visualize();
+                
+                playButton.textContent = 'Playing...';
+                playButton.disabled = true;
+                stopButton.disabled = false;
+            };
+
+            const stopVisualization = () => {
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+                
+                // Stop the visualization loop
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+
+                // Reset the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                playButton.textContent = 'Play';
+                playButton.disabled = false;
+                stopButton.disabled = true;
+            };
+            
+            // --- File Upload Logic ---
+            uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const file = audioFile.files[0];
+                if (!file) {
+                    statusMessage.textContent = 'Please select a file first.';
+                    return;
+                }
+
+                statusMessage.textContent = 'Uploading and processing file...';
+                
+                // Use FormData to send the file
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(data.message);
+                        
+                        // Show the visualizer section and hide the upload form
+                        uploadSection.classList.add('hidden');
+                        visualizerSection.classList.remove('hidden');
+
+                        // Set the audio source and show controls
+                        audioPlayer.src = URL.createObjectURL(file);
+                        audioPlayer.classList.remove('hidden');
+
+                        // Enable the play button once the file is loaded
+                        audioPlayer.addEventListener('loadeddata', () => {
+                            playButton.disabled = false;
+                            statusMessage.textContent = 'File loaded. Click Play to visualize.';
+                        });
+
+                    } else {
+                        const errorData = await response.json();
+                        statusMessage.textContent = `Error: ${errorData.error}`;
+                        console.error('Upload failed:', errorData.error);
+                    }
+                } catch (error) {
+                    statusMessage.textContent = 'An error occurred during upload.';
+                    console.error('Fetch error:', error);
+                }
+            });
+            
+            // --- Event Listeners for Controls ---
+            playButton.addEventListener('click', startVisualization);
+            stopButton.addEventListener('click', stopVisualization);
+        });
+    </script>
 </body>
 </html>
